@@ -1,618 +1,1221 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-TW" class="light">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PG-SGA 癌症病人營養評估與歷次追蹤系統</title>
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- FontAwesome Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- Chart.js CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    .step-active { @apply bg-blue-600 text-white font-bold; }
-    .step-inactive { @apply bg-gray-200 text-gray-600; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>癌症病人整體營養評估 (PG-SGA) - 臨床進階與雲端試算表同步版</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN for statistics visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#fdf4ff',
+                            100: '#fae8ff',
+                            500: '#d946ef',
+                            600: '#c026d3',
+                            700: '#a21caf',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #f0abfc 0%, #818cf8 50%, #38bdf8 100%);
+        }
+        .card-shadow {
+            box-shadow: 0 12px 30px -10px rgba(162, 28, 175, 0.15);
+        }
+    </style>
 </head>
-<body class="bg-slate-100 min-h-screen text-slate-800 pb-12">
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen pb-20">
 
-  <!-- 頂部導覽列 -->
-  <header class="bg-gradient-to-r from-blue-700 to-indigo-800 text-white shadow-lg py-4 px-6 mb-6">
-    <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-      <div class="flex items-center gap-3">
-        <i class="fa-solid fa-notes-medical text-3xl text-blue-200"></i>
-        <div>
-          <h1 class="text-2xl font-bold tracking-wide">PG-SGA 癌症病人營養評估系統</h1>
-          <p class="text-xs text-blue-200">Patient-Generated Subjective Global Assessment</p>
+    <header class="gradient-bg text-white py-10 px-4 sm:px-6 shadow-lg mb-8">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+            <div class="space-y-2 text-center md:text-left">
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/25 backdrop-blur-md text-xs font-semibold uppercase tracking-wider">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    雲端試算表同步版 v4.4
+                </div>
+                <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight">癌症病人整體營養評估 (PG-SGA)</h1>
+                <p class="text-sm sm:text-base text-white/90 max-w-xl">完美對應 Google Apps Script 雲端試算表自動同步，支援多階段縱向追蹤分析</p>
+            </div>
+            
+            <div class="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl flex flex-wrap items-center gap-3 justify-center">
+                <button type="button" onclick="fillDemoData()" class="px-3.5 py-2 bg-white text-indigo-700 font-bold text-xs rounded-xl shadow hover:bg-slate-100 transition active:scale-95">載入示範個案</button>
+                <button type="button" onclick="resetForm()" class="px-3.5 py-2 bg-pink-600 text-white font-bold text-xs rounded-xl shadow hover:bg-pink-500 transition active:scale-95">重置表單</button>
+            </div>
         </div>
-      </div>
-      <!-- 快速查詢歷次紀錄區域 -->
-      <div class="flex items-center bg-white/10 p-2 rounded-lg backdrop-blur-sm border border-white/20 w-full md:w-auto">
-        <input type="text" id="searchPatientId" placeholder="輸入病歷號查詢歷次紀錄..." class="px-3 py-1.5 rounded-l text-slate-800 text-sm focus:outline-none w-full md:w-48">
-        <button type="button" onclick="searchHistory()" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-1.5 rounded-r font-medium text-sm transition flex items-center gap-1">
-          <i class="fa-solid fa-magnifying-glass"></i> 查詢
-        </button>
-      </div>
-    </div>
-  </header>
+    </header>
 
-  <main class="max-w-6xl mx-auto px-4">
+    <!-- Main Container -->
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 space-y-8">
 
-    <!-- 歷史紀錄與趨勢圖表對話框 (預設隱藏) -->
-    <div id="historyModal" class="hidden bg-white p-6 rounded-xl shadow-md border border-slate-200 mb-6 transition-all">
-      <div class="flex justify-between items-center border-b pb-3 mb-4">
-        <h2 class="text-lg font-bold text-slate-700 flex items-center gap-2">
-          <i class="fa-solid fa-chart-line text-blue-600"></i>
-          病患歷次評估趨勢分析：<span id="modalPatientId" class="text-blue-600"></span>
-        </h2>
-        <button onclick="closeHistoryModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
-      </div>
-      
-      <!-- 歷史趨勢圖表 -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 h-64">
-          <canvas id="scoreChart"></canvas>
-        </div>
-        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 h-64">
-          <canvas id="weightChart"></canvas>
-        </div>
-      </div>
-      
-      <!-- 歷次列表數據 -->
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm text-left text-slate-600 border">
-          <thead class="text-xs text-slate-700 uppercase bg-slate-100 border-b">
-            <tr>
-              <th class="px-3 py-2">日期</th>
-              <th class="px-3 py-2">階段</th>
-              <th class="px-3 py-2">癌別</th>
-              <th class="px-3 py-2">體重</th>
-              <th class="px-3 py-2">BMI</th>
-              <th class="px-3 py-2">PG-SGA 總分</th>
-              <th class="px-3 py-2">SGA 分級</th>
-              <th class="px-3 py-2">熱量達成%</th>
-              <th class="px-3 py-2">蛋白質達成%</th>
-            </tr>
-          </thead>
-          <tbody id="historyTableBody">
-            <!-- 動態插入歷史數據 -->
-          </tbody>
-        </table>
-      </div>
-    </div>
+        <section class="bg-white rounded-3xl p-5 sm:p-6 card-shadow border border-indigo-100/50 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3 w-full md:w-auto">
+                <div class="p-2.5 bg-indigo-50 text-indigo-600 rounded-2xl">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900">Google Apps Script 部署連結</h3>
+                    <p class="text-xs text-slate-500">貼上您的 GAS 網頁應用程式部署 URL 即可啟用雲端讀寫</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 w-full md:w-2/3">
+                <input type="text" id="gasWebAppUrl" placeholder="https://script.google.com/macros/s/.../exec" class="px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-400 focus:outline-none w-full">
+                <button type="button" onclick="loadRecordsFromCloud()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow transition whitespace-nowrap active:scale-95">同步雲端資料</button>
+            </div>
+        </section>
 
-    <!-- 評估表單區域 (Wizard 階段式) -->
-    <form id="pgsgaForm" class="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden" onsubmit="submitForm(event)">
-      
-      <!-- Wizard 分頁按鈕標籤 -->
-      <div class="bg-slate-50 border-b flex flex-wrap justify-between text-xs md:text-sm font-medium text-center text-slate-500">
-        <button type="button" onclick="goToStep(1)" id="stepTab1" class="flex-1 py-3 px-2 border-b-2 border-blue-600 text-blue-600 font-bold bg-white">1. 基本資料</button>
-        <button type="button" onclick="goToStep(2)" id="stepTab2" class="flex-1 py-3 px-2 border-b-2 border-transparent hover:text-slate-700">2. 體重與症狀 (A)</button>
-        <button type="button" onclick="goToStep(3)" id="stepTab3" class="flex-1 py-3 px-2 border-b-2 border-transparent hover:text-slate-700">3. 臨床評估 (B-D)</button>
-        <button type="button" onclick="goToStep(4)" id="stepTab4" class="flex-1 py-3 px-2 border-b-2 border-transparent hover:text-slate-700">4. 處方與達成率</button>
-        <button type="button" onclick="goToStep(5)" id="stepTab5" class="flex-1 py-3 px-2 border-b-2 border-transparent hover:text-slate-700">5. 總結與送出</button>
-      </div>
+        <!-- Basic Info Section -->
+        <section class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-pink-100/50 space-y-6">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                <h2 class="text-xl font-bold text-slate-900 flex items-center gap-3">
+                    <span class="w-3 h-6 bg-gradient-to-t from-fuchsia-600 to-pink-500 rounded-full"></span> 基本病歷資訊與診斷
+                </h2>
+                <span class="text-xs text-slate-400 font-medium">區塊基本設定</span>
+            </div>
 
-      <div class="p-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">姓名</label>
+                    <input type="text" id="patientName" placeholder="例如：林志明" class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-fuchsia-400 focus:outline-none transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">病歷號</label>
+                    <input type="text" id="patientId" placeholder="CA202688" class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-fuchsia-400 focus:outline-none transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">癌別選擇</label>
+                    <select id="cancerType" class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-fuchsia-400 focus:outline-none transition">
+                        <option value="口腔癌">口腔癌</option>
+                        <option value="頭頸癌">頭頸癌</option>
+                        <option value="食道癌">食道癌</option>
+                        <option value="胃癌">胃癌</option>
+                        <option value="胰臟癌">胰臟癌</option>
+                        <option value="其他癌別">其他癌別</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">性別</label>
+                    <select id="gender" class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-fuchsia-400 focus:outline-none transition">
+                        <option value="男">男</option>
+                        <option value="女">女</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">出生日期</label>
+                    <input type="date" id="dob" onchange="calculateAge()" class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-fuchsia-400 focus:outline-none transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">年齡 (歲)</label>
+                    <input type="number" id="age" readonly class="w-full px-3.5 py-2.5 text-sm bg-slate-100 border border-slate-200 rounded-xl text-slate-500 font-semibold">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">身高 (cm)</label>
+                    <input type="number" step="0.1" id="height" oninput="calculateBMI()" placeholder="172.0" class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-fuchsia-400 focus:outline-none transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">目前體重 (kg)</label>
+                    <input type="number" step="0.1" id="currentWeight" oninput="calculateBMI()" placeholder="58.0" class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-fuchsia-400 focus:outline-none transition">
+                </div>
+            </div>
 
-        <!-- ================= 區間 1: 基本病歷資訊與診斷 ================= -->
-        <div id="stepSection1" class="space-y-6">
-          <h2 class="text-xl font-bold text-blue-800 border-b pb-2 flex items-center gap-2">
-            <i class="fa-solid fa-id-card"></i> 基本病歷資訊與診斷
-          </h2>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">病歷號 <span class="text-red-500">*</span></label>
-              <input type="text" id="patientId" required class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="例如: 12345678">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">評估階段</label>
+                    <select id="assessmentPhase" onchange="togglePhaseDates()" class="w-full px-3.5 py-2.5 text-sm bg-fuchsia-50/80 border border-fuchsia-200 text-fuchsia-900 font-bold rounded-xl focus:ring-2 focus:ring-fuchsia-400 focus:outline-none transition">
+                        <option value="T0-入院前評估">T0 - 入院前評估</option>
+                        <option value="T1-入院評估">T1 - 入院評估</option>
+                        <option value="T2-出院評估">T2 - 出院評估</option>
+                        <option value="T3-出院後1個月">T3 - 出院後 1 個月</option>
+                        <option value="T4-出院後2-3個月">T4 - 出院後 2-3 個月</option>
+                        <option value="T5-出院後2-3個月(複查)">T5 - 出院後 2-3 個月 (複查)</option>
+                    </select>
+                </div>
+                <div id="admissionDateContainer">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">住院日期 <span id="admissionRequiredStar" class="text-rose-500 font-bold hidden">*</span></label>
+                    <input type="date" id="admissionDate" class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-fuchsia-400 focus:outline-none transition">
+                </div>
+                <div id="dischargeDateContainer">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">出院日期 <span id="dischargeRequiredStar" class="text-rose-500 font-bold hidden">*</span></label>
+                    <input type="date" id="dischargeDate" class="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-fuchsia-400 focus:outline-none transition">
+                </div>
             </div>
-            <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">姓名 <span class="text-red-500">*</span></label>
-              <input type="text" id="patientName" required class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="輸入病患姓名">
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">出生日期</label>
-              <input type="date" id="patientDob" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" onchange="calculateAge()">
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">性別</label>
-              <select id="patientGender" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                <option value="男">男</option>
-                <option value="女">女</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">年齡</label>
-              <input type="number" id="patientAge" class="w-full p-2.5 border rounded-lg bg-slate-50" readonly placeholder="自動計算">
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">診斷描述</label>
-              <input type="text" id="diagnosis" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="例如: 胃腺癌 Stage III">
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">癌別下拉選單 <span class="text-red-500">*</span></label>
-              <select id="cancerType" required class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 border-blue-300 focus:outline-none">
-                <option value="">-- 請選擇癌別 --</option>
-                <option value="口腔癌">口腔癌</option>
-                <option value="頭頸癌">頭頸癌</option>
-                <option value="食道癌">食道癌</option>
-                <option value="胃癌">胃癌</option>
-                <option value="胰臟癌">胰臟癌</option>
-                <option value="其他">其他癌別</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">評估階段 <span class="text-red-500">*</span></label>
-              <select id="timePoint" required onchange="handleTimePointChange()" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                <option value="T0-入院前評估">T0-入院前評估</option>
-                <option value="T1-入院評估">T1-入院評估</option>
-                <option value="T2-出院評估">T2-出院評估</option>
-                <option value="T3-門診/追蹤評估">T3-門診/追蹤評估</option>
-              </select>
-            </div>
-            <div id="admissionDateBox">
-              <label class="block text-sm font-semibold text-slate-700 mb-1" id="admissionLabel">住院日期</label>
-              <input type="date" id="admissionDate" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
-            </div>
-            <div id="dischargeDateBox">
-              <label class="block text-sm font-semibold text-slate-700 mb-1" id="dischargeLabel">出院日期</label>
-              <input type="date" id="dischargeDate" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
-            </div>
-          </div>
-        </div>
 
-        <!-- ================= 區間 2: 體重變化與症狀 (Box A) ================= -->
-        <div id="stepSection2" class="space-y-6 hidden">
-          <h2 class="text-xl font-bold text-blue-800 border-b pb-2 flex items-center gap-2">
-            <i class="fa-solid fa-weight-scale"></i> 身體指數與 Box A 症狀評估
-          </h2>
-          
-          <!-- 身高、體重與 BMI 自動計算 -->
-          <div class="bg-blue-50 p-4 rounded-xl border border-blue-200 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label class="block text-sm font-semibold text-blue-900 mb-1">身高 (cm)</label>
-              <input type="number" step="0.1" id="height" oninput="calculateBMI()" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="例如: 165">
+            <div class="flex items-center justify-between bg-fuchsia-50/60 border border-fuchsia-100 p-4 rounded-2xl">
+                <span class="text-xs font-medium text-slate-600">身體質量指數 (BMI)：<strong id="bmiDisplay" class="text-fuchsia-700 text-sm font-bold">--</strong></span>
+                <span class="text-xs text-slate-500 font-medium">即時聯動試算</span>
             </div>
-            <div>
-              <label class="block text-sm font-semibold text-blue-900 mb-1">目前體重 (kg)</label>
-              <input type="number" step="0.1" id="currentWeight" oninput="calculateBMI()" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="例如: 55.5">
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-blue-900 mb-1">BMI (自動計算)</label>
-              <div class="flex items-center gap-2">
-                <input type="text" id="bmi" readonly class="w-full p-2.5 border rounded-lg bg-white font-bold text-blue-700" placeholder="0.0">
-                <span class="text-xs bg-slate-200 text-slate-600 px-2 py-1 rounded whitespace-nowrap">不計分</span>
-              </div>
-            </div>
-          </div>
+        </section>
 
-          <!-- A1 ~ A4 各得分 -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="p-4 border rounded-xl bg-slate-50">
-              <label class="block font-bold text-slate-700 mb-2">A1 體重改變得分 (0-5分)</label>
-              <select id="scoreA1" onchange="updateScores()" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                <option value="0">0 分 - 體重穩定或增加</option>
-                <option value="1">1 分 - 近期輕微體重減輕 (1-2%)</option>
-                <option value="2">2 分 - 中度體重減輕 (2-3%)</option>
-                <option value="3">3 分 - 顯著體重減輕 (3-5%)</option>
-                <option value="4">4 分 - 重度體重減輕 (5-10%)</option>
-                <option value="5">5 分 - 極重度體重減輕 (>10%)</option>
-              </select>
-            </div>
-            <div class="p-4 border rounded-xl bg-slate-50">
-              <label class="block font-bold text-slate-700 mb-2">A2 飲食攝取量得分 (0-4分)</label>
-              <select id="scoreA2" onchange="updateScores()" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                <option value="0">0 分 - 飲食正常，無改變</option>
-                <option value="1">1 分 - 攝取量稍微減少或改為軟質食</option>
-                <option value="2">2 分 - 顯著減少，主要進食流質</option>
-                <option value="3">3 分 - 極少進食，僅靠補充劑</option>
-                <option value="4">4 分 - 幾乎無法進食 / 禁食</option>
-              </select>
-            </div>
-            <div class="p-4 border rounded-xl bg-slate-50">
-              <label class="block font-bold text-slate-700 mb-2">A3 影響進食之症狀得分 (0-3分)</label>
-              <select id="scoreA3" onchange="updateScores()" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                <option value="0">0 分 - 無明顯不適症狀</option>
-                <option value="1">1 分 - 輕微噁心 / 味覺改變</option>
-                <option value="2">2 分 - 中度吞嚥困難 / 嘔吐 / 腹瀉</option>
-                <option value="3">3 分 - 嚴重疼痛 / 嚴重嘔吐致無法進食</option>
-              </select>
-            </div>
-            <div class="p-4 border rounded-xl bg-slate-50">
-              <label class="block font-bold text-slate-700 mb-2">A4 活動能力與失能得分 (0-3分)</label>
-              <select id="scoreA4" onchange="updateScores()" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                <option value="0">0 分 - 活動自如，無限制</option>
-                <option value="1">1 分 - 能正常活動但感到疲倦</option>
-                <option value="2">2 分 - 臥床/坐輪椅時間 < 50%</option>
-                <option value="3">3 分 - 幾乎完全臥床 / 極度限制</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <!-- ================= 區間 3: 醫護人員評估 (Sec B, C, D) ================= -->
-        <div id="stepSection3" class="space-y-6 hidden">
-          <h2 class="text-xl font-bold text-blue-800 border-b pb-2 flex items-center gap-2">
-            <i class="fa-solid fa-user-md"></i> 專業醫護人員評估 (Section B, C, D)
-          </h2>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="p-4 border rounded-xl bg-amber-50/50 border-amber-200">
-              <label class="block font-bold text-amber-900 mb-2">Section B: 疾病與營養需求得分</label>
-              <p class="text-xs text-amber-700 mb-3">評估癌症應激、發炎反應及代謝需求加成。</p>
-              <input type="number" id="scoreB" min="0" max="6" value="0" oninput="updateScores()" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-amber-500 text-lg font-bold">
-            </div>
-            <div class="p-4 border rounded-xl bg-amber-50/50 border-amber-200">
-              <label class="block font-bold text-amber-900 mb-2">Section C: 代謝需求得分</label>
-              <p class="text-xs text-amber-700 mb-3">評估發燒、類固醇使用等代謝壓迫得分。</p>
-              <input type="number" id="scoreC" min="0" max="3" value="0" oninput="updateScores()" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-amber-500 text-lg font-bold">
-            </div>
-            <div class="p-4 border rounded-xl bg-amber-50/50 border-amber-200">
-              <label class="block font-bold text-amber-900 mb-2">Section D: 身體檢查得分</label>
-              <p class="text-xs text-amber-700 mb-3">評估脂肪流失、肌肉消耗與水腫狀況。</p>
-              <input type="number" id="scoreD" min="0" max="3" value="0" oninput="updateScores()" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-amber-500 text-lg font-bold">
-            </div>
-          </div>
-        </div>
-
-        <!-- ================= 區間 4: 熱量與蛋白質達成率與建議 ================= -->
-        <div id="stepSection4" class="space-y-6 hidden">
-          <h2 class="text-xl font-bold text-blue-800 border-b pb-2 flex items-center gap-2">
-            <i class="fa-solid fa-utensils"></i> 營養目標達成率與處方建議
-          </h2>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="p-4 border rounded-xl bg-emerald-50 border-emerald-200">
-              <label class="block font-bold text-emerald-900 mb-1">熱量達標率 (%)</label>
-              <input type="number" id="calorieTargetPct" min="0" max="200" placeholder="例如: 85" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-800">
-            </div>
-            <div class="p-4 border rounded-xl bg-emerald-50 border-emerald-200">
-              <label class="block font-bold text-emerald-900 mb-1">蛋白質達標率 (%)</label>
-              <input type="number" id="proteinTargetPct" min="0" max="200" placeholder="例如: 75" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-800">
-            </div>
-          </div>
-          <div>
-            <label class="block font-semibold text-slate-700 mb-1">症狀紀錄描述</label>
-            <textarea id="symptomsList" rows="2" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="記載詳細症狀，如: 噁心、腹脹、早飽感..."></textarea>
-          </div>
-          <div>
-            <label class="block font-semibold text-slate-700 mb-1">營養處方與介入建議</label>
-            <textarea id="recommendationText" rows="3" class="w-full p-2.5 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="填寫營養師建議或開立之管灌/口服補充劑處方..."></textarea>
-          </div>
-        </div>
-
-        <!-- ================= 區間 5: 結果與統計送出 ================= -->
-        <div id="stepSection5" class="space-y-6 hidden">
-          <h2 class="text-xl font-bold text-blue-800 border-b pb-2 flex items-center gap-2">
-            <i class="fa-solid fa-square-poll-vertical"></i> PG-SGA 評估總結與提交
-          </h2>
-          
-          <div class="p-6 rounded-xl border-2 border-blue-500 bg-blue-50/30 flex flex-col md:flex-row justify-between items-center gap-6">
-            <div>
-              <p class="text-sm font-semibold text-slate-500">PG-SGA 總得分</p>
-              <div class="text-5xl font-black text-blue-700 my-1" id="displayTotalScore">0</div>
-              <p class="text-xs text-slate-400">Section A + B + C + D 總和</p>
-            </div>
-            <div class="text-right border-t md:border-t-0 md:border-l border-slate-300 pt-4 md:pt-0 md:pl-8 w-full md:w-auto">
-              <p class="text-sm font-semibold text-slate-500">SGA 營養風險等級</p>
-              <div class="text-2xl font-bold text-emerald-600 my-1" id="displaySgaCategory">SGA-A (營養良好)</div>
-              <p class="text-xs text-slate-500" id="displaySgaAdvice">無需積極營養介入，維持定期監測</p>
-            </div>
-          </div>
-
-          <div class="flex flex-col md:flex-row gap-4 pt-4">
-            <button type="submit" id="submitBtn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl shadow-md transition flex items-center justify-center gap-2 text-lg">
-              <i class="fa-solid fa-cloud-arrow-up"></i> 儲存評估資料至雲端試算表
+        <!-- Navigation Tabs -->
+        <div class="flex flex-wrap gap-2 bg-white p-3 rounded-3xl card-shadow border border-slate-100">
+            <button type="button" onclick="switchSection('sectionA')" id="tab_sectionA" class="flex-1 py-3 px-4 rounded-2xl font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 bg-fuchsia-600 text-white shadow-md">
+                <span class="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs">A</span> 區塊 A：病史與自覺症狀
             </button>
-            <button type="button" onclick="resetFullForm()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3.5 px-6 rounded-xl transition flex items-center justify-center gap-2">
-              <i class="fa-solid fa-rotate-left"></i> 重設表單
+            <button type="button" onclick="switchSection('sectionB')" id="tab_sectionB" class="flex-1 py-3 px-4 rounded-2xl font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 bg-slate-100 text-slate-600 hover:bg-slate-200">
+                <span class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs">B</span> 區塊 B：疾病與營養需求
             </button>
-          </div>
+            <button type="button" onclick="switchSection('sectionC')" id="tab_sectionC" class="flex-1 py-3 px-4 rounded-2xl font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 bg-slate-100 text-slate-600 hover:bg-slate-200">
+                <span class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs">C</span> 區塊 C：代謝壓力
+            </button>
+            <button type="button" onclick="switchSection('sectionD')" id="tab_sectionD" class="flex-1 py-3 px-4 rounded-2xl font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 bg-slate-100 text-slate-600 hover:bg-slate-200">
+                <span class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs">D</span> 區塊 D：身體理學檢查
+            </button>
         </div>
 
-        <!-- 底部切換按鈕 (Prev / Next) -->
-        <div class="flex justify-between items-center border-t pt-6 mt-8">
-          <button type="button" id="prevBtn" onclick="changeStep(-1)" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-5 py-2.5 rounded-lg font-semibold transition disabled:opacity-50">
-            <i class="fa-solid fa-arrow-left mr-1"></i> 上一步
-          </button>
-          <span class="text-xs text-slate-400 font-medium" id="stepIndicator">步驟 1 / 5</span>
-          <button type="button" id="nextBtn" onclick="changeStep(1)" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-semibold transition">
-            下一步 <i class="fa-solid fa-arrow-right ml-1"></i>
-          </button>
+        <!-- ==================== SECTION A ==================== -->
+        <div id="content_sectionA" class="wizard-section space-y-8">
+            <section class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-pink-100/50 space-y-6">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                    <h2 class="text-xl font-bold text-slate-900 flex items-center gap-3">
+                        <span class="w-3 h-6 bg-gradient-to-t from-pink-500 to-rose-500 rounded-full"></span> 區塊 A：病史與自覺症狀評分
+                    </h2>
+                    <span class="text-xs font-semibold px-3 py-1 bg-pink-50 text-pink-700 rounded-full">得分：<span id="scoreATotal">0</span> 分</span>
+                </div>
+
+                <!-- A1 Weight Loss -->
+                <div class="space-y-4 bg-slate-50/70 p-5 rounded-2xl border border-slate-100">
+                    <h3 class="text-sm font-bold text-slate-800">A1. 體重減輕評分</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                            <label class="block text-xs font-bold text-slate-700">6個月前體重減輕評分</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-[10px] text-slate-500 mb-1">6個月前體重 (kg)</label>
+                                    <input type="number" step="0.1" id="weight6MonthsAgo" oninput="calculateWeightLossFrom6Months()" placeholder="64.0" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-slate-500 mb-1">減輕比率計算</label>
+                                    <input type="text" id="weightLossAmount6M" readonly placeholder="自動試算" class="w-full px-3 py-2 text-xs bg-slate-100 border border-slate-200 rounded-lg text-slate-600 font-semibold">
+                                </div>
+                            </div>
+                            <div>
+                                <select id="scoreChronic" onchange="recalculateAll()" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg">
+                                    <option value="0">0分：0 - 1.9% 或無降低</option>
+                                    <option value="1">1分：2% - 5.9%</option>
+                                    <option value="2">2分：6% - 9.9%</option>
+                                    <option value="3">3分：10% - 19.9%</option>
+                                    <option value="4">4分：≥ 20%</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                            <label class="block text-xs font-bold text-slate-700">1個月與2星期內體重減輕評分</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-[10px] text-slate-500 mb-1">1個月前體重 (kg)</label>
+                                    <input type="number" step="0.1" id="weight1MonthAgo" oninput="calculateWeightLossFrom1Month()" placeholder="60.0" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-slate-500 mb-1">1個月變動量試算</label>
+                                    <input type="text" id="weightLossAmount1M" readonly placeholder="自動試算" class="w-full px-3 py-2 text-xs bg-slate-100 border border-slate-200 rounded-lg text-slate-600 font-semibold">
+                                </div>
+                            </div>
+                            <div>
+                                <select id="score1Month" onchange="recalculateAll()" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg">
+                                    <option value="0">0分：0 - 1.9%</option>
+                                    <option value="1">1分：2% - 2.9%</option>
+                                    <option value="2">2分：3% - 4.9%</option>
+                                    <option value="3">3分：5% - 9.9%</option>
+                                    <option value="4">4分：≥ 10%</option>
+                                </select>
+                            </div>
+                            <div>
+                                <select id="scoreAcute" onchange="recalculateAll()" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg">
+                                    <option value="0">0分：沒有改變 / 增加</option>
+                                    <option value="1">1分：2星期內體重降低</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- A2 Food Intake -->
+                <div class="space-y-4 bg-slate-50/70 p-5 rounded-2xl border border-slate-100">
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm font-bold text-slate-800">A2. 攝食情況</label>
+                        <span class="text-xs font-semibold px-2.5 py-1 bg-fuchsia-100 text-fuchsia-800 rounded-full">A2 得分: <span id="scoreA2Text">0</span> 分</span>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="space-y-2 bg-white p-4 rounded-xl border border-slate-200">
+                            <label class="block text-xs font-bold text-slate-700">A2-1. 攝食趨勢</label>
+                            <div class="space-y-2">
+                                <label class="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
+                                    <span class="text-xs font-medium">沒改變 (0分)</span>
+                                    <input type="radio" name="a2_trend" value="0" checked onchange="recalculateAll()" class="text-fuchsia-600">
+                                </label>
+                                <label class="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
+                                    <span class="text-xs font-medium">多 (不計分)</span>
+                                    <input type="radio" name="a2_trend" value="0" onchange="recalculateAll()" class="text-fuchsia-600">
+                                </label>
+                                <label class="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
+                                    <span class="text-xs font-medium">較平常少 (1分)</span>
+                                    <input type="radio" name="a2_trend" value="1" onchange="recalculateAll()" class="text-fuchsia-600">
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2 bg-white p-4 rounded-xl border border-slate-200">
+                            <label class="block text-xs font-bold text-slate-700">A2-2. 目前實際攝食型態</label>
+                            <div class="space-y-2">
+                                <label class="flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
+                                    <span class="text-xs font-bold text-slate-800">正常飲食，但較少 (1分)</span>
+                                    <input type="radio" name="a2_current" value="1" onchange="recalculateAll()" class="text-fuchsia-600">
+                                </label>
+                                <label class="flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
+                                    <span class="text-xs font-bold text-slate-800">少許固體食物 (2分)</span>
+                                    <input type="radio" name="a2_current" value="2" onchange="recalculateAll()" class="text-fuchsia-600">
+                                </label>
+                                <label class="flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
+                                    <span class="text-xs font-bold text-slate-800">液體食物 (3分)</span>
+                                    <input type="radio" name="a2_current" value="3" onchange="recalculateAll()" class="text-fuchsia-600">
+                                </label>
+                                <label class="flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
+                                    <span class="text-xs font-bold text-slate-800">全流質 / 營養補充品 (3分)</span>
+                                    <input type="radio" name="a2_current" value="3" onchange="recalculateAll()" class="text-fuchsia-600">
+                                </label>
+                                <label class="flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
+                                    <span class="text-xs font-bold text-slate-800">非常少 / 無法進食 (4分)</span>
+                                    <input type="radio" name="a2_current" value="4" onchange="recalculateAll()" class="text-fuchsia-600">
+                                </label>
+                                <label class="flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer">
+                                    <span class="text-xs font-bold text-slate-800">僅靠管灌或靜脈營養 (0分)</span>
+                                    <input type="radio" name="a2_current" value="0" checked onchange="recalculateAll()" class="text-fuchsia-600">
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- A3 Symptoms -->
+                <div class="space-y-4 bg-slate-50/70 p-5 rounded-2xl border border-slate-100">
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm font-bold text-slate-800">A3. 腸胃及其他症狀</label>
+                        <span class="text-xs font-semibold px-2.5 py-1 bg-rose-100 text-rose-800 rounded-full">A3 得分: <span id="scoreA3Text">0</span> 分</span>
+                    </div>
+                    <div id="symptomsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3"></div>
+                    <div id="painLocationContainer" class="hidden pt-3 bg-white p-4 rounded-2xl border border-rose-200 space-y-2">
+                        <label class="block text-xs font-bold text-rose-700">「疼痛部位」詳細說明 (計 +1 分)</label>
+                        <input type="text" id="painLocationText" placeholder="請填寫具體疼痛部位" class="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl">
+                    </div>
+                </div>
+
+                <!-- A4 Functional Activity -->
+                <div class="space-y-4 bg-slate-50/70 p-5 rounded-2xl border border-slate-100">
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm font-bold text-slate-800">A4. 功能性活動力</label>
+                        <span class="text-xs font-semibold px-2.5 py-1 bg-indigo-100 text-indigo-800 rounded-full">A4 得分: <span id="scoreA4Text">0</span> 分</span>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer">
+                            <span class="text-xs font-bold text-slate-800">0分：正常活動，無受限制</span>
+                            <input type="radio" name="scoreA4" value="0" checked onchange="recalculateAll()" class="text-fuchsia-600">
+                        </label>
+                        <label class="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer">
+                            <span class="text-xs font-bold text-slate-800">1分：日常生活仍能自我料理</span>
+                            <input type="radio" name="scoreA4" value="1" onchange="recalculateAll()" class="text-fuchsia-600">
+                        </label>
+                        <label class="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer">
+                            <span class="text-xs font-bold text-slate-800">2分：白天靜坐或坐輪椅不長於半天</span>
+                            <input type="radio" name="scoreA4" value="2" onchange="recalculateAll()" class="text-fuchsia-600">
+                        </label>
+                        <label class="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer">
+                            <span class="text-xs font-bold text-slate-800">3分：長時間靜坐 / 靜止不動</span>
+                            <input type="radio" name="scoreA4" value="3" onchange="recalculateAll()" class="text-fuchsia-600">
+                        </label>
+                        <label class="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer">
+                            <span class="text-xs font-bold text-slate-800">3分：幾乎完全臥床</span>
+                            <input type="radio" name="scoreA4" value="3" onchange="recalculateAll()" class="text-fuchsia-600">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="flex justify-end pt-4">
+                    <button type="button" onclick="switchSection('sectionB')" class="px-6 py-3 bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold text-sm rounded-2xl shadow-lg transition">前往區塊 B →</button>
+                </div>
+            </section>
         </div>
 
-      </div>
-    </form>
-  </main>
+        <!-- ==================== SECTION B ==================== -->
+        <div id="content_sectionB" class="wizard-section hidden space-y-8">
+            <section class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-pink-100/50 space-y-6">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                    <h2 class="text-xl font-bold text-slate-900 flex items-center gap-3">
+                        <span class="w-3 h-6 bg-indigo-500 rounded-full"></span> B. 疾病與營養需求相關
+                    </h2>
+                    <span class="text-xs font-semibold px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full">得分：<span id="scoreBDisplay">1</span> 分</span>
+                </div>
 
-  <script>
-    // 🔗 您的專屬 Google Apps Script 後端 URL
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwPkbCJYAPtPsb7D4R9FtxIHkgIx1322EeIP8CePeH_uA61rVXUnyGNmnkCaYW5Or5rEA/exec";
+                <div class="space-y-5 bg-slate-50/70 p-5 rounded-2xl border border-slate-100">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">所有疾病相關診斷</label>
+                            <input type="text" id="diseaseDiagnosis" placeholder="例如：食道惡性腫瘤" class="w-full px-3.5 py-2.5 text-xs bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-400 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">主要疾病階段 (請圈選)</label>
+                            <div class="flex items-center gap-3 pt-1 text-xs font-bold text-slate-800">
+                                <label class="cursor-pointer"><input type="radio" name="diseaseStage" value="I" class="mr-1"> I</label>
+                                <label class="cursor-pointer"><input type="radio" name="diseaseStage" value="II" class="mr-1"> II</label>
+                                <label class="cursor-pointer"><input type="radio" name="diseaseStage" value="III" class="mr-1"> III</label>
+                                <label class="cursor-pointer"><input type="radio" name="diseaseStage" value="IV" class="mr-1" checked> IV</label>
+                                <label class="cursor-pointer"><input type="radio" name="diseaseStage" value="其他" class="mr-1"> 其他</label>
+                            </div>
+                        </div>
+                    </div>
 
-    let currentStep = 1;
-    let scoreChartInstance = null;
-    let weightChartInstance = null;
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">年齡</label>
+                            <input type="text" id="diseaseAgeDisplay" readonly placeholder="自動帶入年齡" class="w-full px-3.5 py-2.5 text-xs bg-slate-100 border border-slate-200 rounded-xl text-slate-600 font-semibold">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1.5">治療方式</label>
+                            <div class="flex flex-wrap gap-3 pt-1 text-xs font-medium text-slate-800">
+                                <label class="cursor-pointer"><input type="checkbox" name="treatmentType" value="手術" class="mr-1"> 手術</label>
+                                <label class="cursor-pointer"><input type="checkbox" name="treatmentType" value="放療" class="mr-1"> 放療</label>
+                                <label class="cursor-pointer"><input type="checkbox" name="treatmentType" value="化療" class="mr-1"> 化療</label>
+                                <label class="cursor-pointer"><input type="checkbox" name="treatmentType" value="其他" class="mr-1"> 其他</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-    // 分頁切換 (Wizard)
-    function goToStep(step) {
-      if(step < 1 || step > 5) return;
-      
-      // 隱藏所有步驟
-      for(let i = 1; i <= 5; i++) {
-        document.getElementById(`stepSection${i}`).classList.add('hidden');
-        const tab = document.getElementById(`stepTab${i}`);
-        tab.className = "flex-1 py-3 px-2 border-b-2 border-transparent hover:text-slate-700 text-slate-500";
-      }
-      
-      // 顯示當前步驟
-      document.getElementById(`stepSection${step}`).classList.remove('hidden');
-      const activeTab = document.getElementById(`stepTab${step}`);
-      activeTab.className = "flex-1 py-3 px-2 border-b-2 border-blue-600 text-blue-600 font-bold bg-white";
+                <div class="space-y-4">
+                    <label class="block text-xs font-bold text-slate-700">疾病種類分數 (勾選符合項目，每項各計 1 分)：</label>
+                    
+                    <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                        <table class="w-full text-left text-xs sm:text-sm border-collapse">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                                    <th class="p-3.5 w-16 text-center">選取</th>
+                                    <th class="p-3.5">種類 (Disease Category)</th>
+                                    <th class="p-3.5 text-center w-24">得分</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 font-medium">
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="p-3 text-center"><input type="checkbox" name="disease_cat" value="1" checked onchange="recalculateAll()" class="text-indigo-600 w-4 h-4 rounded"></td>
+                                    <td class="p-3 text-slate-900 font-bold">癌症</td>
+                                    <td class="p-3 text-center text-indigo-600 font-bold">1</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="p-3 text-center"><input type="checkbox" name="disease_cat" value="1" onchange="recalculateAll()" class="text-indigo-600 w-4 h-4 rounded"></td>
+                                    <td class="p-3 text-slate-900">後天免疫不全症候群</td>
+                                    <td class="p-3 text-center text-indigo-600 font-bold">1</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="p-3 text-center"><input type="checkbox" name="disease_cat" value="1" onchange="recalculateAll()" class="text-indigo-600 w-4 h-4 rounded"></td>
+                                    <td class="p-3 text-slate-900">肺臟或心臟惡病質</td>
+                                    <td class="p-3 text-center text-indigo-600 font-bold">1</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="p-3 text-center"><input type="checkbox" name="disease_cat" value="1" onchange="recalculateAll()" class="text-indigo-600 w-4 h-4 rounded"></td>
+                                    <td class="p-3 text-slate-900">褥瘡、開放性傷口或廔管</td>
+                                    <td class="p-3 text-center text-indigo-600 font-bold">1</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="p-3 text-center"><input type="checkbox" name="disease_cat" value="1" onchange="recalculateAll()" class="text-indigo-600 w-4 h-4 rounded"></td>
+                                    <td class="p-3 text-slate-900">創傷</td>
+                                    <td class="p-3 text-center text-indigo-600 font-bold">1</td>
+                                </tr>
+                                <tr class="hover:bg-slate-50 transition">
+                                    <td class="p-3 text-center"><input type="checkbox" id="diseaseOver65" value="1" onchange="recalculateAll()" class="text-indigo-600 w-4 h-4 rounded"></td>
+                                    <td class="p-3 text-slate-900">> 65 歲以上</td>
+                                    <td class="p-3 text-center text-indigo-600 font-bold">1</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
 
-      currentStep = step;
-      document.getElementById('stepIndicator').innerText = `步驟 ${currentStep} / 5`;
-      
-      // 按鈕控制
-      document.getElementById('prevBtn').disabled = (currentStep === 1);
-      if(currentStep === 5) {
-        document.getElementById('nextBtn').classList.add('hidden');
-      } else {
-        document.getElementById('nextBtn').classList.remove('hidden');
-      }
-    }
+                <div class="flex justify-between pt-4">
+                    <button type="button" onclick="switchSection('sectionA')" class="px-5 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-2xl">上一步</button>
+                    <button type="button" onclick="switchSection('sectionC')" class="px-6 py-3 bg-indigo-600 text-white font-bold text-sm rounded-2xl shadow-lg">前往區塊 C →</button>
+                </div>
+            </section>
+        </div>
 
-    function changeStep(delta) {
-      goToStep(currentStep + delta);
-    }
+        <!-- ==================== SECTION C ==================== -->
+        <div id="content_sectionC" class="wizard-section hidden space-y-8">
+            <section class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-pink-100/50 space-y-6">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                    <h2 class="text-xl font-bold text-slate-900 flex items-center gap-3">
+                        <span class="w-3 h-6 bg-indigo-500 rounded-full"></span> 區塊 C：代謝壓力
+                    </h2>
+                    <span class="text-xs font-semibold px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full">得分：<span id="scoreCDisplay">0</span> 分</span>
+                </div>
+                
+                <div class="space-y-4">
+                    <label class="block text-xs font-semibold text-slate-600">代謝壓力評估（依據體溫、心跳及疾病嚴重度計分）：</label>
+                    <div class="space-y-3">
+                        <label class="flex items-start gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-100/80 transition">
+                            <input type="radio" name="scoreC_radio" value="0" checked onchange="setMetabolicScore(0)" class="mt-0.5 text-indigo-600 w-4 h-4">
+                            <div class="text-xs">
+                                <span class="font-bold text-slate-900 block mb-0.5">0 分：無代謝壓力</span>
+                                <span class="text-slate-500">生命徵象穩定，無感染、發燒或重大創傷。</span>
+                            </div>
+                        </label>
 
-    // 計算年齡
-    function calculateAge() {
-      const dobVal = document.getElementById('patientDob').value;
-      if (!dobVal) return;
-      const dob = new Date(dobVal);
-      const diffMs = Date.now() - dob.getTime();
-      const ageDate = new Date(diffMs);
-      const age = Math.abs(ageDate.getUTCFullYear() - 1970);
-      document.getElementById('patientAge').value = age;
-    }
+                        <label class="flex items-start gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-100/80 transition">
+                            <input type="radio" name="scoreC_radio" value="1" onchange="setMetabolicScore(1)" class="mt-0.5 text-indigo-600 w-4 h-4">
+                            <div class="text-xs">
+                                <span class="font-bold text-slate-900 block mb-0.5">1 分：輕度代謝壓力</span>
+                                <span class="text-slate-500">例如：輕微發燒 (體溫 38.0°C - 38.5°C)、手術後恢復期、中度感染。</span>
+                            </div>
+                        </label>
 
-    // 計算 BMI
-    function calculateBMI() {
-      const h = parseFloat(document.getElementById('height').value) / 100;
-      const w = parseFloat(document.getElementById('currentWeight').value);
-      if(h > 0 && w > 0) {
-        const bmi = (w / (h * h)).toFixed(1);
-        document.getElementById('bmi').value = bmi;
-      } else {
-        document.getElementById('bmi').value = '';
-      }
-    }
+                        <label class="flex items-start gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-100/80 transition">
+                            <input type="radio" name="scoreC_radio" value="2" onchange="setMetabolicScore(2)" class="mt-0.5 text-indigo-600 w-4 h-4">
+                            <div class="text-xs">
+                                <span class="font-bold text-slate-900 block mb-0.5">2 分：中度代謝壓力</span>
+                                <span class="text-slate-500">例如：中度發燒 (體溫 38.5°C - 39.0°C)、骨折、敗血症初期。</span>
+                            </div>
+                        </label>
 
-    // 評估階段邏輯：動態鎖定必填
-    function handleTimePointChange() {
-      const val = document.getElementById('timePoint').value;
-      const admLabel = document.getElementById('admissionLabel');
-      const disLabel = document.getElementById('dischargeLabel');
-      const admInput = document.getElementById('admissionDate');
-      const disInput = document.getElementById('dischargeDate');
+                        <label class="flex items-start gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-100/80 transition">
+                            <input type="radio" name="scoreC_radio" value="3" onchange="setMetabolicScore(3)" class="mt-0.5 text-indigo-600 w-4 h-4">
+                            <div class="text-xs">
+                                <span class="font-bold text-slate-900 block mb-0.5">3 分：高度代謝壓力</span>
+                                <span class="text-slate-500">例如：嚴重燒燙傷、重度敗血症、高燒 (> 39.0°C)、多重器官衰竭。</span>
+                            </div>
+                        </label>
+                    </div>
+                    <select id="scoreCLevel" class="hidden">
+                        <option value="0" selected>0</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                    </select>
+                </div>
 
-      admLabel.innerHTML = '住院日期';
-      disLabel.innerHTML = '出院日期';
-      admInput.required = false;
-      disInput.required = false;
+                <div class="flex justify-between pt-4">
+                    <button type="button" onclick="switchSection('sectionB')" class="px-5 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-2xl">上一步</button>
+                    <button type="button" onclick="switchSection('sectionD')" class="px-6 py-3 bg-indigo-600 text-white font-bold text-sm rounded-2xl shadow-lg">前往區塊 D →</button>
+                </div>
+            </section>
+        </div>
 
-      if (val === 'T1-入院評估') {
-        admLabel.innerHTML = '住院日期 <span class="text-red-500">*</span>';
-        admInput.required = true;
-      } else if (val === 'T2-出院評估') {
-        disLabel.innerHTML = '出院日期 <span class="text-red-500">*</span>';
-        disInput.required = true;
-      }
-    }
+        <!-- ==================== SECTION D ==================== -->
+        <div id="content_sectionD" class="wizard-section hidden space-y-8">
+            <section class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-pink-100/50 space-y-6">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                    <h2 class="text-xl font-bold text-slate-900 flex items-center gap-3">
+                        <span class="w-3 h-6 bg-sky-500 rounded-full"></span> 區塊 D：身體理學檢查
+                    </h2>
+                    <span class="text-xs font-semibold px-3 py-1 bg-sky-50 text-sky-700 rounded-full">D 總分：<span id="scoreDDisplay">0</span> 分</span>
+                </div>
 
-    // 計算 PG-SGA 總分與 SGA 分級
-    function updateScores() {
-      const a1 = parseInt(document.getElementById('scoreA1').value) || 0;
-      const a2 = parseInt(document.getElementById('scoreA2').value) || 0;
-      const a3 = parseInt(document.getElementById('scoreA3').value) || 0;
-      const a4 = parseInt(document.getElementById('scoreA4').value) || 0;
-      const b = parseInt(document.getElementById('scoreB').value) || 0;
-      const c = parseInt(document.getElementById('scoreC').value) || 0;
-      const d = parseInt(document.getElementById('scoreD').value) || 0;
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs sm:text-sm border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100/80 text-slate-700 font-bold">
+                                <th class="p-3">檢查部位</th>
+                                <th class="p-3 text-center">沒缺乏 (0)</th>
+                                <th class="p-3 text-center">輕度 (+1)</th>
+                                <th class="p-3 text-center">中度 (+2)</th>
+                                <th class="p-3 text-center">重度 (+3)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="physicalExamTableBody" class="divide-y divide-slate-100 font-medium"></tbody>
+                    </table>
+                </div>
 
-      const total = a1 + a2 + a3 + a4 + b + c + d;
-      document.getElementById('displayTotalScore').innerText = total;
+                <div class="flex justify-between pt-4">
+                    <button type="button" onclick="switchSection('sectionC')" class="px-5 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-2xl">上一步</button>
+                    <button type="button" onclick="scrollToSummary()" class="px-6 py-3 bg-sky-600 text-white font-bold text-sm rounded-2xl shadow-lg">檢視總結算 ↓</button>
+                </div>
+            </section>
+        </div>
 
-      let sgaCategory = "SGA-A (營養良好)";
-      let advice = "無需積極營養介入，維持定期監測";
-      let colorClass = "text-emerald-600";
+        <!-- ==================== BACKEND MANAGEMENT PANEL ==================== -->
+        <section class="bg-slate-900 text-white rounded-3xl p-6 sm:p-10 card-shadow space-y-6">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-slate-800 pb-6">
+                <div class="space-y-1 text-center md:text-left">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-400 text-xs font-semibold uppercase tracking-wider">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        後台試算表連線與歷史紀錄專區
+                    </div>
+                    <h2 class="text-2xl font-extrabold tracking-tight">後端資料庫與同步管理</h2>
+                    <p class="text-xs text-slate-400">專屬於醫療後台的雲端紀錄檢索、病歷號篩選與手動回傳中心</p>
+                </div>
+                <div class="flex flex-wrap gap-3 items-center">
+                    <button type="button" onclick="loadRecordsFromCloud()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        從後台刷新載入
+                    </button>
+                    <button type="button" onclick="exportFilteredRecordsCSV()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition">匯出目前篩選結果 CSV</button>
+                </div>
+            </div>
 
-      if (total >= 9) {
-        sgaCategory = "SGA-C (重度營養不良)";
-        advice = "極高風險！急需營養師開立營養處方與積極介入";
-        colorClass = "text-red-600";
-      } else if (total >= 4) {
-        sgaCategory = "SGA-B (中度營養不良)";
-        advice = "中度風險，建議由營養師衛教並安排膳食調整";
-        colorClass = "text-amber-600";
-      }
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-800/60 p-5 rounded-2xl border border-slate-800">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1.5">依病歷號 / 姓名搜尋</label>
+                    <input type="text" id="filterKeyword" oninput="filterBackendRecords()" placeholder="輸入關鍵字..." class="w-full px-3.5 py-2.5 text-xs bg-slate-900 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1.5">依評估階段篩選</label>
+                    <select id="filterPhase" onchange="filterBackendRecords()" class="w-full px-3.5 py-2.5 text-xs bg-slate-900 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <option value="">全部階段</option>
+                        <option value="T0-入院前評估">T0 - 入院前評估</option>
+                        <option value="T1-入院評估">T1 - 入院評估</option>
+                        <option value="T2-出院評估">T2 - 出院評估</option>
+                        <option value="T3-出院後1個月">T3 - 出院後 1 個月</option>
+                        <option value="T4-出院後2-3個月">T4 - 出院後 2-3 個月</option>
+                        <option value="T5-出院後2-3個月(複查)">T5 - 出院後 2-3 個月 (複查)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1.5">依癌別篩選</label>
+                    <select id="filterCancer" onchange="filterBackendRecords()" class="w-full px-3.5 py-2.5 text-xs bg-slate-900 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <option value="">全部癌別</option>
+                        <option value="口腔癌">口腔癌</option>
+                        <option value="頭頸癌">頭頸癌</option>
+                        <option value="食道癌">食道癌</option>
+                        <option value="胃癌">胃癌</option>
+                        <option value="胰臟癌">胰臟癌</option>
+                        <option value="其他癌別">其他癌別</option>
+                    </select>
+                </div>
+            </div>
 
-      const categoryEl = document.getElementById('displaySgaCategory');
-      categoryEl.innerText = sgaCategory;
-      categoryEl.className = `text-2xl font-bold my-1 ${colorClass}`;
-      document.getElementById('displaySgaAdvice').innerText = advice;
-    }
+            <div class="overflow-x-auto rounded-2xl border border-slate-800">
+                <table class="w-full text-left text-xs sm:text-sm border-collapse">
+                    <thead>
+                        <tr class="bg-slate-800 text-slate-300 font-bold uppercase tracking-wider text-[11px]">
+                            <th class="p-3.5">時間戳記 / 病歷號</th>
+                            <th class="p-3.5">姓名 / 癌別</th>
+                            <th class="p-3.5">評估階段</th>
+                            <th class="p-3.5 text-center">身高 / 體重 / BMI</th>
+                            <th class="p-3.5 text-center">PG-SGA 總分</th>
+                            <th class="p-3.5 text-center">達成率</th>
+                            <th class="p-3.5">營養建議內容</th>
+                        </tr>
+                    </thead>
+                    <tbody id="backendSpreadsheetTableBody" class="divide-y divide-slate-800/80 font-medium text-slate-300"></tbody>
+                </table>
+            </div>
+        </section>
 
-    // 表單送出 (POST 至 Google Apps Script)
-    async function submitForm(e) {
-      e.preventDefault();
-      const btn = document.getElementById('submitBtn');
-      btn.disabled = true;
-      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 資料傳送中...`;
+        <!-- Summary & Recommendation Card -->
+        <section id="summarySection" class="gradient-bg text-white rounded-3xl p-6 sm:p-10 card-shadow space-y-8">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+                <div class="space-y-2 text-center md:text-left">
+                    <span class="text-xs font-bold uppercase tracking-widest text-white/80 bg-white/20 px-3 py-1 rounded-full">PG-SGA 最終總結算</span>
+                    <div class="flex items-baseline justify-center md:justify-start gap-4 pt-2">
+                        <span class="text-5xl font-black tracking-tight" id="finalTotalScore">8</span>
+                        <span class="text-lg font-medium text-white/90">分</span>
+                    </div>
+                </div>
 
-      const formData = {
-        patientId: document.getElementById('patientId').value,
-        patientName: document.getElementById('patientName').value,
-        patientDob: document.getElementById('patientDob').value,
-        patientGender: document.getElementById('patientGender').value,
-        patientAge: document.getElementById('patientAge').value,
-        diagnosis: document.getElementById('diagnosis').value,
-        cancerType: document.getElementById('cancerType').value,
-        timePoint: document.getElementById('timePoint').value,
-        admissionDate: document.getElementById('admissionDate').value,
-        dischargeDate: document.getElementById('dischargeDate').value,
-        height: document.getElementById('height').value,
-        currentWeight: document.getElementById('currentWeight').value,
-        bmi: document.getElementById('bmi').value,
-        scoreA1: parseInt(document.getElementById('scoreA1').value) || 0,
-        scoreA2: parseInt(document.getElementById('scoreA2').value) || 0,
-        scoreA3: parseInt(document.getElementById('scoreA3').value) || 0,
-        scoreA4: parseInt(document.getElementById('scoreA4').value) || 0,
-        scoreB: parseInt(document.getElementById('scoreB').value) || 0,
-        scoreC: parseInt(document.getElementById('scoreC').value) || 0,
-        scoreD: parseInt(document.getElementById('scoreD').value) || 0,
-        totalScore: parseInt(document.getElementById('displayTotalScore').innerText) || 0,
-        sgaCategoryText: document.getElementById('displaySgaCategory').innerText,
-        calorieTargetPct: parseFloat(document.getElementById('calorieTargetPct').value) || 0,
-        proteinTargetPct: parseFloat(document.getElementById('proteinTargetPct').value) || 0,
-        symptomsList: document.getElementById('symptomsList').value,
-        recommendationText: document.getElementById('recommendationText').value
-      };
+                <div id="sgaBadge" class="px-6 py-3 rounded-2xl text-base font-bold bg-amber-400 text-slate-900 shadow-xl text-center">
+                    中度營養不良 (SGA-B)
+                </div>
+            </div>
 
-      try {
-        const resp = await fetch(GOOGLE_SCRIPT_URL, {
-          method: 'POST',
-          body: JSON.stringify(formData)
+            <div class="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-6 space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-white/80 mb-1">熱量達成率 (%)</label>
+                        <input type="number" id="calorieTarget" value="75" class="w-full px-3.5 py-2.5 text-sm bg-white/20 border border-white/30 rounded-xl text-white font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-white/80 mb-1">蛋白質達成率 (%)</label>
+                        <input type="number" id="proteinTarget" value="70" class="w-full px-3.5 py-2.5 text-sm bg-white/20 border border-white/30 rounded-xl text-white font-bold">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-white/80 mb-1">營養介入與衛教建議</label>
+                    <textarea id="recommendations" rows="3" class="w-full px-3.5 py-2.5 text-sm bg-white/20 border border-white/30 rounded-xl text-white">1. 依據疾病階段調整飲食質地與口服營養品 (ONS)。
+2. 定期追蹤體重及血液生化值變化。</textarea>
+                </div>
+
+                <div class="pt-4 flex flex-wrap gap-4 justify-end">
+                    <button type="button" onclick="saveCurrentAssessmentToCloud()" class="px-6 py-3 bg-white text-indigo-700 font-extrabold text-sm rounded-2xl shadow-lg hover:bg-slate-100 transition active:scale-95 flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        儲存並同步至 Google 雲端試算表
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts Section -->
+        <section class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 space-y-6">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                <h2 class="text-xl font-bold text-slate-900 flex items-center gap-3">
+                    <span class="w-3 h-6 bg-indigo-600 rounded-full"></span> 統計圖表分析
+                </h2>
+                <span class="text-xs text-slate-500 font-medium">個案縱向追蹤趨勢</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <h3 class="text-xs font-bold text-slate-600 mb-3 uppercase">總分與體重趨勢</h3>
+                    <div class="relative h-64"><canvas id="scoreWeightChart"></canvas></div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <h3 class="text-xs font-bold text-slate-600 mb-3 uppercase">熱量與蛋白質達成率 (%)</h3>
+                    <div class="relative h-64"><canvas id="targetChart"></canvas></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Records Table -->
+        <section class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 space-y-6">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                <h2 class="text-xl font-bold text-slate-900 flex items-center gap-3">
+                    <span class="w-3 h-6 bg-fuchsia-600 rounded-full"></span> 前台檢視與預覽區
+                </h2>
+                <button type="button" onclick="loadRecordsFromCloud()" class="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl">重新載入雲端資料</button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs sm:text-sm border-collapse">
+                    <thead>
+                        <tr class="bg-slate-100/80 text-slate-700 font-bold">
+                            <th class="p-3">病歷號 / 姓名</th>
+                            <th class="p-3">階段與日期</th>
+                            <th class="p-3">癌別</th>
+                            <th class="p-3 text-center">身高 / 體重 / BMI</th>
+                            <th class="p-3 text-center">總分</th>
+                            <th class="p-3 text-center">達成率</th>
+                            <th class="p-3">備註與建議</th>
+                        </tr>
+                    </thead>
+                    <tbody id="spreadsheetTableBody" class="divide-y divide-slate-100 font-medium text-slate-700"></tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal Notification -->
+    <div id="customModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4 text-center">
+            <h3 id="modalTitle" class="text-lg font-bold text-slate-900">系統提示</h3>
+            <p id="modalMessage" class="text-sm text-slate-600">訊息內容</p>
+            <button type="button" onclick="closeModal()" class="w-full py-2.5 bg-indigo-600 text-white font-bold text-sm rounded-xl">確定</button>
+        </div>
+    </div>
+
+    <script>
+        const SYMPTOMS_LIST = [
+            { name: "沒有問題", score: 0 },
+            { name: "沒食慾、不想吃", score: 3 },
+            { name: "沒興趣", score: 1 },
+            { name: "口痛", score: 2 },
+            { name: "疼痛部位", score: 1 },
+            { name: "噁心", score: 1 },
+            { name: "嘔吐", score: 3 },
+            { name: "便秘", score: 1 },
+            { name: "腹瀉", score: 3 },
+            { name: "口乾", score: 1 },
+            { name: "嗅覺困擾", score: 1 },
+            { name: "易飽脹", score: 1 },
+            { name: "吞嚥困難", score: 1 },
+            { name: "其他(沮喪、經濟、牙齒)", score: 1 }
+        ];
+
+        const PHYSICAL_ITEMS = [
+            { cat: "脂肪檢查", items: ["下眼窩", "皮下脂肪層", "肋骨處", "總評"] },
+            { cat: "肌肉儲存", items: ["顳部肌肉", "鎖骨肌肉", "肩膀", "肩胛骨", "虎口處", "四頭肌", "腓腸肌肉", "總評"] },
+            { cat: "體液滯留情況", items: ["踝部", "薦骨", "腹水", "總評"] }
+        ];
+
+        let selectedSymptoms = new Set(["沒食慾、不想吃", "口痛", "疼痛部位"]);
+        let physicalScores = {};
+        let savedRecords = [];
+        let scoreWeightChartInstance = null;
+        let targetChartInstance = null;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            renderSymptoms();
+            renderPhysicalExam();
+            loadInitialDemoData();
+            initCharts();
         });
-        const resJson = await resp.json();
-        
-        if (resJson.result === "success") {
-          alert('🎉 評估資料已順利成功寫入 Google 試算表！');
-          resetFullForm();
-        } else {
-          alert('❌ 寫入失敗: ' + (resJson.error || '不明錯誤'));
+
+        function showMessage(title, message) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').textContent = message;
+            document.getElementById('customModal').classList.remove('hidden');
         }
-      } catch (err) {
-        alert('⚠️ 傳送失敗，請確認網路連線或 Apps Script 部署設定。');
-        console.error(err);
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> 儲存評估資料至雲端試算表`;
-      }
-    }
 
-    // 重設表單
-    function resetFullForm() {
-      document.getElementById('pgsgaForm').reset();
-      updateScores();
-      goToStep(1);
-    }
-
-    // 依病歷號查詢歷史紀錄 (GET)
-    async function searchHistory() {
-      const qId = document.getElementById('searchPatientId').value.trim();
-      if(!qId) {
-        alert('請先輸入病歷號！');
-        return;
-      }
-
-      try {
-        const resp = await fetch(`${GOOGLE_SCRIPT_URL}?patientId=${encodeURIComponent(qId)}`);
-        const result = await resp.json();
-
-        if (result.result === "success" && result.data && result.data.length > 0) {
-          renderHistoryModal(qId, result.data);
-        } else {
-          alert(`查無病歷號 [${qId}] 的歷史紀錄。`);
+        function closeModal() {
+            document.getElementById('customModal').classList.add('hidden');
         }
-      } catch (err) {
-        alert('查詢失敗，請檢查網路連線或 API 設定。');
-        console.error(err);
-      }
-    }
 
-    // 呈現歷次紀錄與繪製 Chart.js 趨勢圖
-    function renderHistoryModal(patientId, records) {
-      document.getElementById('modalPatientId').innerText = patientId;
-      const tbody = document.getElementById('historyTableBody');
-      tbody.innerHTML = '';
+        function switchSection(sectionId) {
+            const sections = ['sectionA', 'sectionB', 'sectionC', 'sectionD'];
+            sections.forEach(sec => {
+                const el = document.getElementById(`content_${sec}`);
+                const tab = document.getElementById(`tab_${sec}`);
+                if (sec === sectionId) {
+                    el.classList.remove('hidden');
+                    tab.className = "flex-1 py-3 px-4 rounded-2xl font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 bg-fuchsia-600 text-white shadow-md";
+                } else {
+                    el.classList.add('hidden');
+                    tab.className = "flex-1 py-3 px-4 rounded-2xl font-bold text-xs sm:text-sm transition flex items-center justify-center gap-2 bg-slate-100 text-slate-600 hover:bg-slate-200";
+                }
+            });
+            window.scrollTo({ top: 300, behavior: 'smooth' });
+        }
 
-      const dates = [];
-      const scores = [];
-      const weights = [];
+        function scrollToSummary() {
+            document.getElementById('summarySection').scrollIntoView({ behavior: 'smooth' });
+        }
 
-      records.forEach(r => {
-        const dateStr = new Date(r.date).toLocaleDateString('zh-TW');
-        dates.push(dateStr);
-        scores.push(r.totalScore);
-        weights.push(r.weight);
+        function renderSymptoms() {
+            const container = document.getElementById('symptomsGrid');
+            container.innerHTML = '';
+            SYMPTOMS_LIST.forEach(sym => {
+                const isSelected = selectedSymptoms.has(sym.name);
+                const label = document.createElement('label');
+                label.className = `p-3 rounded-xl font-medium border text-left transition flex items-center justify-between cursor-pointer ${
+                    isSelected ? 'bg-fuchsia-600 text-white border-fuchsia-600 shadow-sm' : 'bg-white text-slate-700 border-slate-200'
+                }`;
+                label.innerHTML = `
+                    <div class="flex items-center gap-2.5">
+                        <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSymptom('${sym.name}')" class="rounded text-fuchsia-600">
+                        <span class="text-xs font-bold">${sym.name}</span>
+                    </div>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}">+${sym.score}</span>
+                `;
+                container.appendChild(label);
+            });
+            const painContainer = document.getElementById('painLocationContainer');
+            if (selectedSymptoms.has("疼痛部位")) { painContainer.classList.remove('hidden'); }
+            else { painContainer.classList.add('hidden'); }
+            calcA3Score();
+        }
 
-        const tr = document.createElement('tr');
-        tr.className = "border-b hover:bg-slate-50";
-        tr.innerHTML = `
-          <td class="px-3 py-2">${dateStr}</td>
-          <td class="px-3 py-2"><span class="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded">${r.timePoint || '-'}</span></td>
-          <td class="px-3 py-2">${r.cancerType || '-'}</td>
-          <td class="px-3 py-2">${r.weight || '-'} kg</td>
-          <td class="px-3 py-2">${r.bmi || '-'}</td>
-          <td class="px-3 py-2 font-bold ${r.totalScore >= 9 ? 'text-red-600' : 'text-blue-600'}">${r.totalScore}</td>
-          <td class="px-3 py-2">${r.sgaCategory || '-'}</td>
-          <td class="px-3 py-2">${r.calorieTargetPct}%</td>
-          <td class="px-3 py-2">${r.proteinTargetPct}%</td>
-        `;
-        tbody.appendChild(tr);
-      });
+        function toggleSymptom(name) {
+            if (selectedSymptoms.has(name)) { selectedSymptoms.delete(name); }
+            else {
+                if (name === "沒有問題") { selectedSymptoms.clear(); selectedSymptoms.add("沒有問題"); }
+                else { selectedSymptoms.delete("沒有問題"); selectedSymptoms.add(name); }
+            }
+            renderSymptoms();
+            recalculateAll();
+        }
 
-      document.getElementById('historyModal').classList.remove('hidden');
+        function calcA3Score() {
+            let total = 0;
+            selectedSymptoms.forEach(name => {
+                const found = SYMPTOMS_LIST.find(s => s.name === name);
+                if (found) total += found.score;
+            });
+            document.getElementById('scoreA3Text').textContent = total;
+            return total;
+        }
 
-      // 繪製圖表
-      drawCharts(dates, scores, weights);
-    }
+        function renderPhysicalExam() {
+            const tbody = document.getElementById('physicalExamTableBody');
+            tbody.innerHTML = '';
+            PHYSICAL_ITEMS.forEach(group => {
+                const headerTr = document.createElement('tr');
+                headerTr.className = 'bg-slate-50 font-bold text-slate-600';
+                headerTr.innerHTML = `<td colspan="5" class="p-2.5 text-xs text-fuchsia-700 uppercase">${group.cat}</td>`;
+                tbody.appendChild(headerTr);
+                group.items.forEach(itemName => {
+                    if (physicalScores[itemName] === undefined) physicalScores[itemName] = 0;
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-50/80 transition';
+                    tr.innerHTML = `
+                        <td class="p-3 text-slate-800 font-medium">${itemName}</td>
+                        <td class="p-3 text-center"><input type="radio" name="phys_${itemName}" value="0" ${physicalScores[itemName]===0?'checked':''} onchange="updatePhysicalScore('${itemName}', 0)" class="text-sky-600"></td>
+                        <td class="p-3 text-center"><input type="radio" name="phys_${itemName}" value="1" ${physicalScores[itemName]===1?'checked':''} onchange="updatePhysicalScore('${itemName}', 1)" class="text-sky-600"></td>
+                        <td class="p-3 text-center"><input type="radio" name="phys_${itemName}" value="2" ${physicalScores[itemName]===2?'checked':''} onchange="updatePhysicalScore('${itemName}', 2)" class="text-sky-600"></td>
+                        <td class="p-3 text-center"><input type="radio" name="phys_${itemName}" value="3" ${physicalScores[itemName]===3?'checked':''} onchange="updatePhysicalScore('${itemName}', 3)" class="text-sky-600"></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            });
+        }
 
-    function closeHistoryModal() {
-      document.getElementById('historyModal').classList.add('hidden');
-    }
+        function updatePhysicalScore(itemName, val) {
+            physicalScores[itemName] = val;
+            recalculateAll();
+        }
 
-    function drawCharts(labels, scoreData, weightData) {
-      if (scoreChartInstance) scoreChartInstance.destroy();
-      if (weightChartInstance) weightChartInstance.destroy();
+        function setMetabolicScore(val) {
+            document.getElementById('scoreCLevel').value = val;
+            recalculateAll();
+        }
 
-      const ctxScore = document.getElementById('scoreChart').getContext('2d');
-      scoreChartInstance = new Chart(ctxScore, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'PG-SGA 總分趨勢 (分數越低越好)',
-            data: scoreData,
-            borderColor: '#2563eb',
-            backgroundColor: 'rgba(37, 99, 235, 0.1)',
-            fill: true,
-            tension: 0.3
-          }]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-      });
+        function togglePhaseDates() {
+            const phase = document.getElementById('assessmentPhase').value;
+            const admissionStar = document.getElementById('admissionRequiredStar');
+            const dischargeStar = document.getElementById('dischargeRequiredStar');
+            
+            if (phase === "T1-入院評估") {
+                admissionStar.classList.remove('hidden');
+            } else {
+                admissionStar.classList.add('hidden');
+            }
 
-      const ctxWeight = document.getElementById('weightChart').getContext('2d');
-      weightChartInstance = new Chart(ctxWeight, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: '體重趨勢 (kg)',
-            data: weightData,
-            borderColor: '#10b981',
-            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-            fill: true,
-            tension: 0.3
-          }]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-      });
-    }
+            if (phase === "T2-出院評估") {
+                dischargeStar.classList.remove('hidden');
+            } else {
+                dischargeStar.classList.add('hidden');
+            }
+        }
 
-    // 初始化
-    handleTimePointChange();
-    updateScores();
-  </script>
+        function calculateAge() {
+            const dobVal = document.getElementById('dob').value;
+            if (!dobVal) { 
+                document.getElementById('age').value = ''; 
+                document.getElementById('diseaseAgeDisplay').value = '';
+                return; 
+            }
+            const birthDate = new Date(dobVal);
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const m = today.getMonth() - birthDate.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) { age--; }
+            const finalAge = age >= 0 ? age : 0;
+            document.getElementById('age').value = finalAge;
+            document.getElementById('diseaseAgeDisplay').value = `${finalAge} 歲`;
+            document.getElementById('diseaseOver65').checked = (finalAge > 65);
+            recalculateAll();
+        }
+
+        function calculateBMI() {
+            const weight = parseFloat(document.getElementById('currentWeight').value);
+            const heightCm = parseFloat(document.getElementById('height').value);
+            if (!weight || !heightCm || heightCm <= 0) { document.getElementById('bmiDisplay').textContent = '--'; return null; }
+            const bmi = (weight / Math.pow(heightCm / 100, 2)).toFixed(1);
+            document.getElementById('bmiDisplay').textContent = bmi;
+            calculateWeightLossFrom6Months();
+            calculateWeightLossFrom1Month();
+            return bmi;
+        }
+
+        function calculateWeightLossFrom6Months() {
+            const currentWeight = parseFloat(document.getElementById('currentWeight').value);
+            const w6m = parseFloat(document.getElementById('weight6MonthsAgo').value);
+            const lossBox = document.getElementById('weightLossAmount6M');
+            const scoreSelect = document.getElementById('scoreChronic');
+            if (!currentWeight || !w6m || w6m <= 0) { lossBox.value = '--'; return; }
+            const diff = w6m - currentWeight;
+            const pct = (diff / w6m) * 100;
+            lossBox.value = `${diff > 0 ? diff.toFixed(1) + ' kg (' + pct.toFixed(1) + '%)' : '無減少'}`;
+            scoreSelect.value = pct >= 20 ? "4" : pct >= 10 ? "3" : pct >= 6 ? "2" : pct >= 2 ? "1" : "0";
+            recalculateAll();
+        }
+
+        function calculateWeightLossFrom1Month() {
+            const currentWeight = parseFloat(document.getElementById('currentWeight').value);
+            const w1m = parseFloat(document.getElementById('weight1MonthAgo').value);
+            const lossBox = document.getElementById('weightLossAmount1M');
+            const scoreSelect = document.getElementById('score1Month');
+            if (!currentWeight || !w1m || w1m <= 0) { lossBox.value = '--'; return; }
+            const diff = w1m - currentWeight;
+            const pct = (diff / w1m) * 100;
+            lossBox.value = `${diff > 0 ? diff.toFixed(1) + ' kg (' + pct.toFixed(1) + '%)' : '無減少'}`;
+            scoreSelect.value = pct >= 10 ? "4" : pct >= 5 ? "3" : pct >= 3 ? "2" : pct >= 2 ? "1" : "0";
+            recalculateAll();
+        }
+
+        function recalculateAll() {
+            const chronicScore = parseInt(document.getElementById('scoreChronic').value) || 0;
+            const m1Score = parseInt(document.getElementById('score1Month').value) || 0;
+            const acuteScore = parseInt(document.getElementById('scoreAcute').value) || 0;
+            const a1Total = Math.max(chronicScore, m1Score, acuteScore);
+
+            const a2Trend = parseInt(document.querySelector('input[name="a2_trend"]:checked')?.value || 0);
+            const a2Current = parseInt(document.querySelector('input[name="a2_current"]:checked')?.value || 0);
+            const scoreA2 = Math.max(a2Trend, a2Current);
+            document.getElementById('scoreA2Text').textContent = scoreA2;
+
+            const a3 = calcA3Score();
+            const a4Val = parseInt(document.querySelector('input[name="scoreA4"]:checked')?.value || 0);
+            document.getElementById('scoreA4Text').textContent = a4Val;
+
+            const scoreA = a1Total + scoreA2 + a3 + a4Val;
+            document.getElementById('scoreATotal').textContent = scoreA;
+
+            let scoreB = 0;
+            document.querySelectorAll('input[name="disease_cat"]:checked').forEach(() => scoreB += 1);
+            if (document.getElementById('diseaseOver65').checked) scoreB += 1;
+            document.getElementById('scoreBDisplay').textContent = scoreB;
+
+            const scoreC = parseInt(document.getElementById('scoreCLevel').value) || 0;
+            document.getElementById('scoreCDisplay').textContent = scoreC;
+
+            let scoreD = 0;
+            Object.values(physicalScores).forEach(v => scoreD += v);
+            document.getElementById('scoreDDisplay').textContent = scoreD;
+
+            const finalTotal = scoreA + scoreB + scoreC + scoreD;
+            document.getElementById('finalTotalScore').textContent = finalTotal;
+            updateSgaBadge(finalTotal);
+            return finalTotal;
+        }
+
+        function updateSgaBadge(total) {
+            const badge = document.getElementById('sgaBadge');
+            if (total >= 9) {
+                badge.className = "px-6 py-3 rounded-2xl text-base font-bold bg-rose-600 text-white shadow-xl text-center";
+                badge.textContent = "嚴重營養不良 (SGA-C)";
+            } else if (total >= 4) {
+                badge.className = "px-6 py-3 rounded-2xl text-base font-bold bg-amber-400 text-slate-900 shadow-xl text-center";
+                badge.textContent = "中度營養不良 (SGA-B)";
+            } else if (total >= 2) {
+                badge.className = "px-6 py-3 rounded-2xl text-base font-bold bg-blue-500 text-white shadow-xl text-center";
+                badge.textContent = "輕度營養不良 (SGA-A)";
+            } else {
+                badge.className = "px-6 py-3 rounded-2xl text-base font-bold bg-emerald-500 text-white shadow-xl text-center";
+                badge.textContent = "營養良好 (SGA-A)";
+            }
+        }
+
+        function initCharts() {
+            const ctx1 = document.getElementById('scoreWeightChart').getContext('2d');
+            scoreWeightChartInstance = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: ['T0-入院前', 'T1-入院', 'T2-出院', 'T3-術後1月'],
+                    datasets: [
+                        { label: 'PG-SGA 總分', data: [7, 8, 6, 4], borderColor: '#d946ef', yAxisID: 'y' },
+                        { label: '體重 (kg)', data: [60.0, 58.0, 57.5, 59.0], borderColor: '#38bdf8', yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        y: { type: 'linear', display: true, position: 'left' },
+                        y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false } }
+                    }
+                }
+            });
+
+            const ctx2 = document.getElementById('targetChart').getContext('2d');
+            targetChartInstance = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: ['T0-入院前', 'T1-入院', 'T2-出院', 'T3-術後1月'],
+                    datasets: [
+                        { label: '熱量達成率 (%)', data: [65, 75, 80, 95], backgroundColor: 'rgba(56, 189, 248, 0.7)' },
+                        { label: '蛋白質達成率 (%)', data: [60, 70, 75, 90], backgroundColor: 'rgba(217, 70, 239, 0.7)' }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100 } } }
+            });
+        }
+
+        async function saveCurrentAssessmentToCloud() {
+            const url = document.getElementById('gasWebAppUrl').value.trim();
+            if (!url) {
+                showMessage("提示", "請先輸入您的 Google Apps Script 部署 URL！");
+                return;
+            }
+
+            const payload = {
+                id: document.getElementById('patientId').value || "CA202688",
+                name: document.getElementById('patientName').value || "林志明",
+                cancerType: document.getElementById('cancerType').value,
+                phase: document.getElementById('assessmentPhase').value,
+                date: new Date().toISOString().split('T')[0],
+                admissionDate: document.getElementById('admissionDate').value || "--",
+                dischargeDate: document.getElementById('dischargeDate').value || "--",
+                height: document.getElementById('height').value || "--",
+                weight: document.getElementById('currentWeight').value || "--",
+                bmi: document.getElementById('bmiDisplay').textContent,
+                totalScore: document.getElementById('finalTotalScore').textContent,
+                calorieTarget: document.getElementById('calorieTarget').value,
+                proteinTarget: document.getElementById('proteinTarget').value,
+                symptoms: Array.from(selectedSymptoms).join(", "),
+                recommendations: document.getElementById('recommendations').value
+            };
+
+            try {
+                showMessage("處理中", "正在將評估資料同步寫入 Google 雲端試算表...");
+                const response = await fetch(url, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (result.status === 'success') {
+                    showMessage("同步成功", "已成功寫入 Google 試算表！");
+                    loadRecordsFromCloud();
+                } else {
+                    showMessage("寫入失敗", result.message);
+                }
+            } catch (err) {
+                showMessage("網路錯誤", "無法連線至 GAS 應用程式，請確認 URL 是否正確或已正確部署為「所有人皆可存取」。");
+            }
+        }
+
+        async function loadRecordsFromCloud() {
+            const url = document.getElementById('gasWebAppUrl').value.trim();
+            if (!url) return;
+
+            try {
+                const response = await fetch(url);
+                const result = await response.json();
+                if (result.status === 'success') {
+                    savedRecords = result.records || [];
+                    updateSpreadsheetTable();
+                    filterBackendRecords();
+                    updateChartData();
+                }
+            } catch (err) {
+                console.error("無法從雲端載入資料", err);
+            }
+        }
+
+        function updateSpreadsheetTable() {
+            const tbody = document.getElementById('spreadsheetTableBody');
+            tbody.innerHTML = '';
+            if (savedRecords.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-slate-400">目前尚無雲端紀錄或尚未同步</td></tr>`;
+                return;
+            }
+            savedRecords.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition border-b border-slate-100';
+                tr.innerHTML = `
+                    <td class="p-3"><strong>${r.id}</strong><br><span class="text-xs text-slate-500">${r.name}</span></td>
+                    <td class="p-3"><span class="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-xs font-bold">${r.phase}</span><br><span class="text-[11px] text-slate-400">${r.date}</span></td>
+                    <td class="p-3 font-medium text-slate-800">${r.cancerType}</td>
+                    <td class="p-3 text-center">${r.height} cm<br>${r.weight} kg (BMI ${r.bmi})</td>
+                    <td class="p-3 text-center"><span class="px-2.5 py-1 bg-fuchsia-100 text-fuchsia-800 font-bold rounded-full">${r.totalScore}分</span></td>
+                    <td class="p-3 text-center">熱量: ${r.calorieTarget}%<br>蛋白: ${r.proteinTarget}%</td>
+                    <td class="p-3 text-xs text-slate-600 max-w-xs truncate" title="${r.recommendations}">${r.recommendations}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterBackendRecords() {
+            const keyword = (document.getElementById('filterKeyword')?.value || "").toLowerCase();
+            const phase = document.getElementById('filterPhase')?.value || "";
+            const cancer = document.getElementById('filterCancer')?.value || "";
+
+            const filtered = savedRecords.filter(r => {
+                const matchKeyword = !keyword || (r.id && r.id.toLowerCase().includes(keyword)) || (r.name && r.name.toLowerCase().includes(keyword));
+                const matchPhase = !phase || r.phase === phase;
+                const matchCancer = !cancer || r.cancerType === cancer;
+                return matchKeyword && matchPhase && matchCancer;
+            });
+
+            const tbody = document.getElementById('backendSpreadsheetTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-500">符合條件的後端紀錄為空</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-800/80 transition border-b border-slate-800/80';
+                tr.innerHTML = `
+                    <td class="p-3.5"><span class="text-indigo-400 font-bold">${r.id}</span><br><span class="text-[10px] text-slate-500">${r.timestamp || r.date}</span></td>
+                    <td class="p-3.5"><strong class="text-white">${r.name}</strong><br><span class="text-xs text-slate-400">${r.cancerType}</span></td>
+                    <td class="p-3.5"><span class="px-2.5 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-xs font-semibold">${r.phase}</span></td>
+                    <td class="p-3.5 text-center">${r.height} cm / ${r.weight} kg<br><span class="text-xs text-slate-400">BMI: ${r.bmi}</span></td>
+                    <td class="p-3.5 text-center"><span class="px-2.5 py-1 bg-fuchsia-500/20 text-fuchsia-300 font-bold rounded-full">${r.totalScore} 分</span></td>
+                    <td class="p-3.5 text-center">熱: ${r.calorieTarget}%<br>蛋: ${r.proteinTarget}%</td>
+                    <td class="p-3.5 text-xs text-slate-300 max-w-xs truncate" title="${r.recommendations}">${r.recommendations}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function exportFilteredRecordsCSV() {
+            if (savedRecords.length === 0) {
+                showMessage("提示", "目前沒有可匯出的後端紀錄。");
+                return;
+            }
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+            csvContent += "時間戳記,病歷號,姓名,癌別,評估階段,評估日期,身高(cm),體重(kg),BMI,PG-SGA總分,熱量達成率(%),蛋白質達成率(%),症狀清單,營養建議與備註\n";
+
+            savedRecords.forEach(r => {
+                const row = [
+                    r.timestamp || "",
+                    r.id || "",
+                    r.name || "",
+                    r.cancerType || "",
+                    r.phase || "",
+                    r.date || "",
+                    r.height || "",
+                    r.weight || "",
+                    r.bmi || "",
+                    r.totalScore || 0,
+                    r.calorieTarget || "",
+                    r.proteinTarget || "",
+                    `"${(r.symptoms || "").replace(/"/g, '""')}"`,
+                    `"${(r.recommendations || "").replace(/"/g, '""')}"`
+                ];
+                csvContent += row.join(",") + "\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `PG_SGA_Backend_Export_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function updateChartData() {
+            if (!scoreWeightChartInstance || !targetChartInstance || savedRecords.length === 0) return;
+            const labels = savedRecords.map(r => `${r.id} (${r.phase.split('-')[0]})`);
+            const scores = savedRecords.map(r => parseInt(r.totalScore));
+            const weights = savedRecords.map(r => parseFloat(r.weight) || 0);
+
+            scoreWeightChartInstance.data.labels = labels;
+            scoreWeightChartInstance.data.datasets[0].data = scores;
+            scoreWeightChartInstance.data.datasets[1].data = weights;
+            scoreWeightChartInstance.update();
+        }
+
+        function loadInitialDemoData() {
+            document.getElementById('patientName').value = "林志明";
+            document.getElementById('patientId').value = "CA202688";
+            document.getElementById('cancerType').value = "食道癌";
+            document.getElementById('gender').value = "男";
+            document.getElementById('dob').value = "1968-04-20";
+            document.getElementById('height').value = "172.0";
+            document.getElementById('currentWeight').value = "58.0";
+            document.getElementById('weight6MonthsAgo').value = "64.0";
+            document.getElementById('weight1MonthAgo').value = "60.0";
+            document.getElementById('assessmentPhase').value = "T1-入院評估";
+            calculateAge();
+            calculateBMI();
+            recalculateAll();
+        }
+
+        function resetForm() {
+            document.getElementById('patientName').value = "";
+            document.getElementById('patientId').value = "";
+            document.getElementById('dob').value = "";
+            document.getElementById('age').value = "";
+            document.getElementById('height').value = "";
+            document.getElementById('currentWeight').value = "";
+            document.getElementById('bmiDisplay').textContent = "--";
+            selectedSymptoms.clear();
+            physicalScores = {};
+            renderSymptoms();
+            renderPhysicalExam();
+            recalculateAll();
+        }
+    </script>
 </body>
 </html>
